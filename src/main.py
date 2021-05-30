@@ -5,6 +5,7 @@ from mathematics import *
 from pygame import draw
 from pygame import gfxdraw
 from pygame.draw import line
+import random
 
 pg.init()
 pg.display.set_caption('2D Sin.py')
@@ -12,7 +13,7 @@ pg.display.set_caption('2D Sin.py')
 # pg.display.set_icon(icon)
 
 WINDOW_W = WINDOW_H = 900
-FPS = 60
+FPS = 30
 
 zoom = 1.0
 is_topdown = False
@@ -132,7 +133,7 @@ def is_colliding(entity1, entity2):
     # Case 1: Particle vs Particle:
     if type(entity1) == Particle and type(entity2) == Particle:
         if check_particles_collision(entity1,entity2):
-            pass
+            elastic_collision(entity1,entity2)
     
     # Case 2: Particle vs. Rectangle
     # Note: Can reduce this boolean, left for clarity
@@ -140,7 +141,7 @@ def is_colliding(entity1, entity2):
         particle, solid = (entity1,entity2) if (type(entity1) == Particle and type(entity2) == SolidRectangle) else (entity2,entity1)
         if check_particle_solid_collision(particle,solid):
             #print(f"COLLISION DETECTED with {solid.name}")
-            particle_solid_elastic_collision(particle,solid)
+            elastic_collision(particle,solid)
 
 def check_particle_solid_collision(particle : Particle, solid : SolidRectangle):
     cx, cy = particle.position
@@ -163,25 +164,26 @@ def check_particle_solid_collision(particle : Particle, solid : SolidRectangle):
     return (dx**2 + dy**2 <= r**2)
 
 def check_particles_collision(entity1, entity2):
-    pass
+    distance = vector2D_get_length(vector2D_sub(entity2.position,entity1.position))
+    return distance <= entity1.radius + entity2.radius
 
-def particle_solid_elastic_collision(particle : Particle, solid : SolidRectangle):
-    m1 = particle.mass
-    v1x, v1y = particle.velocity
 
-    m2 = solid.mass
-    v2x, v2y = solid.velocity
+def elastic_collision(entity1, entity2):
+    m1 = entity1.mass
+    v1x, v1y = entity1.velocity
 
-    if not particle.is_fixed:
+    m2 = entity2.mass
+    v2x, v2y = entity2.velocity
+
+    if not entity1.is_fixed:
         vx = ((m1 - m2)*v1x + 2*m2*v2x) / (m1 + m2)
         vy = ((m1 - m2)*v1y + 2*m2*v2y) / (m1 + m2)
-        particle.velocity = (vx,vy)
-        #print(f"UPDATED VELOCITY {vx},{vy}")
+        entity1.velocity = (vx,vy)
     
-    if not solid.is_fixed:
+    if not entity2.is_fixed:
         vx = ((m2 - m1)*v2x + 2*m1*v1x) / (m1 + m2)
         vy = ((m2 - m1)*v2y + 2*m1*v1y) / (m1 + m2)
-        solid.velocity = (vx,vy)
+        entity2.velocity = (vx,vy)
 
 def update_all_positions():
     for entity in entities:
@@ -248,8 +250,16 @@ def main():
 
     screen = pg.display.set_mode((WINDOW_W,WINDOW_H))
     clock = pg.time.Clock()
-    particle = Particle((0,0), mass=10, size=10, velocity=(255,0))
-    entities = [particle]
+
+    entities = []
+    for _ in range(5):
+        pos = (random.uniform(-150,150),random.uniform(-150,150))
+        mass = random.uniform(1,50)
+        r = random.randint(5,30)
+        vel = (random.uniform(-300,300),random.uniform(-300,300))
+        color = (random.randint(0,256),random.randint(0,256),random.randint(0,256))
+        particle = Particle(position=pos,size=r,mass=mass,velocity=vel,color=color)
+        entities.append(particle)
     entities = create_bounding_walls(entities)
 
     background_colour = (255,255,255)
