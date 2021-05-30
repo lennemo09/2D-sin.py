@@ -1,5 +1,6 @@
 import pygame as pg
 import enum
+import math
 from mathematics import *
 from pygame import draw
 from pygame import gfxdraw
@@ -11,7 +12,7 @@ pg.display.set_caption('2D Sin.py')
 # pg.display.set_icon(icon)
 
 WINDOW_W = WINDOW_H = 900
-FPS = 120
+FPS = 60
 
 zoom = 1.0
 is_topdown = False
@@ -49,7 +50,8 @@ class PhysicsEntity:
     pass
 
 class Particle(PhysicsEntity):
-    def __init__(self, position : tuple = (0,0), size : float = 0, mass : float = 1.0, velocity : tuple = (0,0), acceleration : tuple = (0,0), color : tuple = (111,111,111), gravity : bool = True, fixed : bool = False):
+    def __init__(self, position : tuple = (0,0), size : float = 0, mass : float = 1.0, velocity : tuple = (0,0), acceleration : tuple = (0,0), color : tuple = (111,111,111), gravity : bool = True, fixed : bool = False, name="Particle"):
+        self.name = name
         self.mass = mass
         self.material = None
 
@@ -63,6 +65,8 @@ class Particle(PhysicsEntity):
         self.gravity = gravity
         self.is_fixed = fixed
 
+        self.collision_checked = False
+
     def draw(self):
         draw_circle(position=self.get_world_position(),color=self.color,radius=self.get_pixel_size(),line_width=self.line_width)
 
@@ -71,9 +75,17 @@ class Particle(PhysicsEntity):
 
     def get_world_position(self):
         return vector2D_add(self.position, world_origin.world_coordinate) # Element-wise tuple addition
+    
+    def get_speed(self):
+        return vector2D_get_length(self.velocity)**2
 
+    def get_kinetic_energy(self):
+        return 0.5 * self.mass * vector2D_get_length(self.velocity)**2
+        
 class SolidRectangle(PhysicsEntity):
-    def __init__(self, position : tuple = (0,0), size : tuple = (10,10), mass : float = 1.0, velocity : tuple = (0,0), acceleration : tuple = (0,0), color : tuple = (111,111,111), gravity : bool = True, fixed : bool = False):
+    def __init__(self, position : tuple = (0,0), size : tuple = (10,10), mass : float = 1.0, velocity : tuple = (0,0), acceleration : tuple = (0,0), color : tuple = (111,111,111), gravity : bool = True, fixed : bool = False, name="Rectangle"):
+        self.name = name
+
         self.mass = mass
         self.material = None
 
@@ -87,6 +99,8 @@ class SolidRectangle(PhysicsEntity):
         self.gravity = gravity
         self.is_fixed = fixed
 
+        self.collision_checked = False
+
     def draw(self):
         draw_rectangle(startpoint=self.get_world_position(),size=self.get_pixel_size(),color=self.color,line_width=self.line_width)
 
@@ -96,23 +110,37 @@ class SolidRectangle(PhysicsEntity):
     def get_world_position(self):
         return vector2D_add(self.position, world_origin.world_coordinate) # Element-wise tuple addition
 
+    def get_speed(self):
+        return vector2D_get_length(self.velocity)
+
+    def get_kinetic_energy(self):
+        return 0.5 * self.mass * self.get_speed()**2
+
 
 #################################### PHYSICS UPDATE ###########################################
 def is_colliding(entity1, entity2):
     """
     Cases:
+        0. 2 fixed entities: Ignore collision.
         1. Particle vs. Particle : Circle collision.
         2. Particle vs. Rectangle: Cirlce & rectangle collision.
     """
+    # Case 0: 2 fixed entities:
+    if entity1.is_fixed and entity2.is_fixed:
+        return False
+
     # Case 1: Particle vs Particle:
     if type(entity1) == Particle and type(entity2) == Particle:
-        return check_particles_collision(entity1,entity2)
+        if check_particles_collision(entity1,entity2):
+            pass
     
     # Case 2: Particle vs. Rectangle
     # Note: Can reduce this boolean, left for clarity
     if (type(entity1) == Particle and type(entity2) == SolidRectangle) or (type(entity1) == SolidRectangle and type(entity2) == Particle):
         particle, solid = (entity1,entity2) if (type(entity1) == Particle and type(entity2) == SolidRectangle) else (entity2,entity1)
-        return check_particle_solid_collision(particle,solid)
+        if check_particle_solid_collision(particle,solid):
+            #print(f"COLLISION DETECTED with {solid.name}")
+            particle_solid_elastic_collision(particle,solid)
 
 def check_particle_solid_collision(particle : Particle, solid : SolidRectangle):
     cx, cy = particle.position
@@ -120,17 +148,19 @@ def check_particle_solid_collision(particle : Particle, solid : SolidRectangle):
     sx, sy = solid.position
     w,h = solid.size
 
-    if (cx + r > sx) and (cy + r > sy) and (cx - r < sx + w) and (cy - r < sy + h + w):
-        if (cx + r > sx):
-            print(f"(cx + r > sx): cx+r={cx+r} sx={sx}")
-        if (cy + r > sy):
-            print(f"(cy + r > sy): cy+r={cy + r} sy={sy}")
-        if (cx - r < sx + w):
-            print(f"(cx - r < sx + w): cx-r={cx-r} sx+w={sx+w}")
-        if (cy - r < sy + h + w):
-            print(f"(cy - r < sy + h + w): cy-r={cy-r} sy+h+w={sy+h+w}")
-        return True
-    return False
+    distX = abs(cx - sx-w/2)
+    distY = abs(cy - sy-h/2)
+
+    if (distX > (w/2 + r)): return False
+    if (distY > (h/2 + r)): return False
+
+    if (distX <= w/2): return True
+    if (distY <= h/2): return True
+
+    dx = distX - w/2
+    dy = distY - h/2
+
+    return (dx**2 + dy**2 <= r**2)
 
 def check_particles_collision(entity1, entity2):
     pass
@@ -146,15 +176,16 @@ def particle_solid_elastic_collision(particle : Particle, solid : SolidRectangle
         vx = ((m1 - m2)*v1x + 2*m2*v2x) / (m1 + m2)
         vy = ((m1 - m2)*v1y + 2*m2*v2y) / (m1 + m2)
         particle.velocity = (vx,vy)
+        #print(f"UPDATED VELOCITY {vx},{vy}")
     
     if not solid.is_fixed:
         vx = ((m2 - m1)*v2x + 2*m1*v1x) / (m1 + m2)
         vy = ((m2 - m1)*v2y + 2*m1*v1y) / (m1 + m2)
         solid.velocity = (vx,vy)
 
-
 def update_all_positions():
     for entity in entities:
+        entity.collision_checked = False
         if not entity.is_fixed:
             update_position(entity)
 
@@ -193,6 +224,14 @@ def render_frame():
         if isinstance(entity,PhysicsEntity):
             entity.draw()
 
+################################## HELPER FUNCTIONS ############################################
+def create_bounding_walls(entities):
+    lower = SolidRectangle((-WINDOW_W/2,300), (WINDOW_W,200), mass=999999999999, color=(0,0,0), gravity=False, fixed=True, name="lower")
+    upper = SolidRectangle((-WINDOW_W/2,-WINDOW_H/2), (WINDOW_W,200), mass=999999999999, color=(0,0,0), gravity=False, fixed=True, name ="upper")
+    left = SolidRectangle((-WINDOW_W/2,-WINDOW_H/2), (200,WINDOW_H), mass=999999999999, color=(0,0,0), gravity=False, fixed=True, name="left")
+    right = SolidRectangle((WINDOW_W/2-200,-WINDOW_H/2), (200,WINDOW_H), mass=999999999999, color=(0,0,0), gravity=False, fixed=True, name="right")
+    return [lower,upper,left,right] + entities
+
 def main():
     global screen
     global entities
@@ -209,10 +248,9 @@ def main():
 
     screen = pg.display.set_mode((WINDOW_W,WINDOW_H))
     clock = pg.time.Clock()
-
-    ground = SolidRectangle((-WINDOW_W/2,300), (WINDOW_W,200), mass=999999999999, color=(0,0,0), gravity=False, fixed=True)
-
-    entities = [ground,Particle((0,0), mass=10, size=10, velocity=(150,-300))]
+    particle = Particle((0,0), mass=10, size=10, velocity=(255,0))
+    entities = [particle]
+    entities = create_bounding_walls(entities)
 
     background_colour = (255,255,255)
     
@@ -225,9 +263,16 @@ def main():
             if event.type == pg.QUIT:
                 running = False
 
-        if is_colliding(entities[0],entities[1]):
-            particle_solid_elastic_collision(entities[1],entities[0])
-
+        for i in range(len(entities)):
+            entity1 = entities[i]
+            for j in range(len(entities)):
+                if j == i:
+                    continue
+                else:
+                    entity2 = entities[j]
+                    if not entity2.collision_checked:
+                        is_colliding(entity1,entity2)
+            entity1.collision_checked = True
         update_all_positions()
         render_frame()
         # Do stuff before this
