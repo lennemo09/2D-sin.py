@@ -13,7 +13,7 @@ pg.display.set_caption('2D Sin.py')
 # pg.display.set_icon(icon)
 
 WINDOW_W = WINDOW_H = 900
-FPS = 30
+FPS = 800
 
 zoom = 1.0
 is_topdown = False
@@ -234,6 +234,14 @@ def create_bounding_walls(entities):
     right = SolidRectangle((WINDOW_W/2-200,-WINDOW_H/2), (200,WINDOW_H), mass=999999999999, color=(0,0,0), gravity=False, fixed=True, name="right")
     return [lower,upper,left,right] + entities
 
+
+def update_fps(clock):
+    font = pg.font.SysFont("Arial", 18)
+    fps = str(int(clock.get_fps()))
+    fps_text = font.render(fps, 1, pg.Color("coral"))
+    return fps_text
+
+######################################## MAIN ###################################################
 def main():
     global screen
     global entities
@@ -286,6 +294,7 @@ def main():
         update_all_positions()
         render_frame()
         # Do stuff before this
+        screen.blit(update_fps(clock), (10,0))   # Shows current FPS
         clock.tick(FPS)
         pg.display.flip()
 
