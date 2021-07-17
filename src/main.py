@@ -13,9 +13,10 @@ pg.display.set_caption('2D Sin.py')
 # pg.display.set_icon(icon)
 
 WINDOW_W = WINDOW_H = 900
-FPS = 60
+FPS = 120
 DELTA_T = 1/FPS
 
+current_fps = FPS
 zoom = 1.0
 is_topdown = False
 
@@ -152,8 +153,9 @@ def check_particle_solid_collision(particle : Particle, solid : SolidRectangle):
     sx, sy = solid.position
     w,h = solid.size
 
-    next_cx = cx + vx * DELTA_T
-    next_cy = cy + vy * DELTA_T
+    delta_t = get_delta_t()
+    next_cx = cx + vx * delta_t
+    next_cy = cy + vy * delta_t
 
     distX = abs(next_cx - sx-w/2)
     distY = abs(next_cy - sy-h/2)
@@ -170,13 +172,15 @@ def check_particle_solid_collision(particle : Particle, solid : SolidRectangle):
     return (dx**2 + dy**2 <= r**2)
 
 def check_particles_collision(entity1, entity2):
+    delta_t = get_delta_t()
+    
     cx1, cy1 = entity1.position
     vx1, vy1 = entity1.velocity
-    new_pos1 = (cx1 + vx1 * DELTA_T, cy1 + vy1 * DELTA_T)
+    new_pos1 = (cx1 + vx1 * delta_t, cy1 + vy1 * delta_t)
 
     cx2, cy2 = entity2.position
     vx2, vy2 = entity2.velocity
-    new_pos2 = (cx2 + vx2 * DELTA_T, cy2 + vy2 * DELTA_T)
+    new_pos2 = (cx2 + vx2 * delta_t, cy2 + vy2 * delta_t)
 
     distance = vector2D_get_length(vector2D_sub(new_pos2,new_pos1))
     return distance <= entity1.radius + entity2.radius
@@ -251,9 +255,18 @@ def create_bounding_walls(entities):
 
 def update_fps(clock):
     font = pg.font.SysFont("Arial", 18)
-    fps = str(int(clock.get_fps()))
+
+    global current_fps
+    current_fps = int(clock.get_fps())
+    fps = str(current_fps)
     fps_text = font.render(fps, 1, pg.Color("coral"))
     return fps_text
+
+def get_delta_t():
+    if current_fps > 0:
+        return 1 / current_fps
+    else:
+        return 1 / FPS
 
 ######################################## MAIN ###################################################
 def main():
