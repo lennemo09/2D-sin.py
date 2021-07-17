@@ -13,7 +13,8 @@ pg.display.set_caption('2D Sin.py')
 # pg.display.set_icon(icon)
 
 WINDOW_W = WINDOW_H = 900
-FPS = 800
+FPS = 60
+DELTA_T = 1/FPS
 
 zoom = 1.0
 is_topdown = False
@@ -145,12 +146,17 @@ def is_colliding(entity1, entity2):
 
 def check_particle_solid_collision(particle : Particle, solid : SolidRectangle):
     cx, cy = particle.position
+    vx, vy = particle.velocity
     r = particle.radius
+
     sx, sy = solid.position
     w,h = solid.size
 
-    distX = abs(cx - sx-w/2)
-    distY = abs(cy - sy-h/2)
+    next_cx = cx + vx * DELTA_T
+    next_cy = cy + vy * DELTA_T
+
+    distX = abs(next_cx - sx-w/2)
+    distY = abs(next_cy - sy-h/2)
 
     if (distX > (w/2 + r)): return False
     if (distY > (h/2 + r)): return False
@@ -164,7 +170,15 @@ def check_particle_solid_collision(particle : Particle, solid : SolidRectangle):
     return (dx**2 + dy**2 <= r**2)
 
 def check_particles_collision(entity1, entity2):
-    distance = vector2D_get_length(vector2D_sub(entity2.position,entity1.position))
+    cx1, cy1 = entity1.position
+    vx1, vy1 = entity1.velocity
+    new_pos1 = (cx1 + vx1 * DELTA_T, cy1 + vy1 * DELTA_T)
+
+    cx2, cy2 = entity2.position
+    vx2, vy2 = entity2.velocity
+    new_pos2 = (cx2 + vx2 * DELTA_T, cy2 + vy2 * DELTA_T)
+
+    distance = vector2D_get_length(vector2D_sub(new_pos2,new_pos1))
     return distance <= entity1.radius + entity2.radius
 
 
@@ -260,7 +274,7 @@ def main():
     clock = pg.time.Clock()
 
     entities = []
-    for _ in range(5):
+    for _ in range(1):
         pos = (random.uniform(-150,150),random.uniform(-150,150))
         mass = random.uniform(1,50)
         r = random.randint(5,30)
